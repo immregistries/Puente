@@ -17,11 +17,10 @@
 	</properties>
 
 	<dependencies>
-            
 		<dependency>
 			<groupId>org.immregistries</groupId>
 			<artifactId>mqe-validator</artifactId>
-			<version>2020.08-BETA</version>
+			<version>2020.04-BETA</version>
 		</dependency>
             
 		<dependency>
@@ -37,9 +36,24 @@
               <version>4.12</version>	
               <scope>test</scope>
 		</dependency>
-
-	
 	</dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addClasspath>true</addClasspath>
+                            <mainClass>org.immregistries.puente.FileWatchService</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>
 
