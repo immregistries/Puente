@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Map;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVRecord;
+import org.immregistries.mqe.hl7util.SeverityLevel;
+import org.immregistries.mqe.validator.detection.ValidationReport;
 import org.immregistries.mqe.validator.engine.MessageValidator;
 import org.immregistries.mqe.validator.engine.ValidationRuleResult;
 import org.immregistries.mqe.vxu.MqeMessageReceived;
@@ -97,8 +99,28 @@ public class FileWatchService {
       patient.setSexCode(sex);
       System.out.println(patient);
       List<ValidationRuleResult> list = validator.validateMessage(mmr);
+      reportResults(list);
     }
   }
+
+  private void reportResults(List<ValidationRuleResult> list) {
+    for (ValidationRuleResult vrr : list) {
+      for (ValidationReport i : vrr.getValidationDetections()) {
+        if (SeverityLevel.ERROR == i.getSeverity()) {
+          String s = "  - ";
+          if (i.getHl7LocationList() != null && i.getHl7LocationList().size() > 0) {
+            s += i.getHl7LocationList().get(0);
+          }
+          s += "                   ";
+          if (s.length() > 10) {
+            s = s.substring(0, 18);
+          }
+          System.out.println(s + ": " + i.getDetection() + "[" + i.getValueReceived() + "]");
+        }
+      }
+    }
+  }
+
 
   public static void main(String[] args) throws IOException {
     Path dir = Paths.get(".");
