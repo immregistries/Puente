@@ -2,13 +2,13 @@ package org.immregistries.puente;
 
 import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
-
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.WatchEvent;
@@ -37,6 +37,9 @@ public class FileWatchService {
   private final Map<WatchKey, Path> keys;
   private MessageValidator validator = MessageValidator.INSTANCE;
 
+  private static final String DIR_SEND = "send";
+  private static final String DIR_REQUEST = "request";
+
   private final String vxuTemplate =
       "MSH|^~\\&|||||${messageHeaderDate}||VXU^V04^VXU_V04||P|2.5.1|||ER|AL|||||Z22^CDCPHINVS\nPID|1||U09J28375^^^AIRA-TEST^MR||${lastName}^${firstName}^${middleName}^^^^L||${birthDate}|${sex}||2106-3^White^CDCREC|${street}^${street2}^${city}^${state}^${zipCode}^USA^P|||||||||||\nRXA|0|1|${administrationDate}||${administeredCode}|999|||01^Historical information - source unspecified^NIP001|||||||||||CP|A";
 
@@ -53,7 +56,7 @@ public class FileWatchService {
   }
 
   void processEvents() throws IOException {
-    for (; ; ) {
+    for (;;) {
       WatchKey key;
       try {
         key = watcher.take();
@@ -193,7 +196,7 @@ public class FileWatchService {
   }
 
   void writeFile(String name, String value) throws IOException {
-    String directoryName = "./generated";
+    String directoryName = "./" + DIR_REQUEST;
     System.out.println("Writing file");
     SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
     Date date = new Date(System.currentTimeMillis());
@@ -231,7 +234,13 @@ public class FileWatchService {
   }
 
   public static void main(String[] args) throws IOException {
-    Path dir = Paths.get(".");
+    String directoryName = "./" + DIR_SEND;
+    File directory = new File(directoryName);
+    if (!directory.exists())
+    {
+      directory.mkdir();
+    }
+    Path dir = Paths.get(directoryName);
     new FileWatchService(dir).processEvents();
   }
 }
