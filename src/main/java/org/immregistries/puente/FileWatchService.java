@@ -2,19 +2,20 @@ package org.immregistries.puente;
 
 import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.FileSystems;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -38,6 +39,8 @@ public class FileWatchService {
   private MessageValidator validator = MessageValidator.INSTANCE;
 
   private static final String DIR_SEND = "send";
+  private static final String DIR_SEND_ERROR = "send-error";
+  private static final String DIR_SEND_READY = "send-ready";
   private static final String DIR_REQUEST = "request";
 
   private final String vxuTemplate =
@@ -56,7 +59,7 @@ public class FileWatchService {
   }
 
   void processEvents() throws IOException {
-    for (;;) {
+    for (; ; ) {
       WatchKey key;
       try {
         key = watcher.take();
@@ -95,75 +98,82 @@ public class FileWatchService {
 
   void evaluateFile(File file) throws IOException {
     System.out.println("Evaluating File");
+    File errorFile = null;
+    File readyFile = null;
+    Iterable<CSVRecord> records = new ArrayList<CSVRecord>();
     try {
-      Iterable<CSVRecord> records =
-          CSVFormat.EXCEL.withFirstRecordAsHeader().parse(new FileReader(file));
-      for (CSVRecord record : records) {
-        System.out.println(record);
+      records = CSVFormat.DEFAULT.withFirstRecordAsHeader().parse(new FileReader(file));
+    } catch (Exception e) {
+      System.out.println("Couldn't parse file.");
+    }
+    for (CSVRecord record : records) {
+      System.out.println(record);
 
-        String vaccinationEventId = record.get("Vaccination event ID");
-        String recipientId = record.get("Recipient ID");
-        String firstName = record.get("Recipient name: first");
-        String middleName = record.get("Recipient name: middle");
-        String lastName = record.get("Recipient name: last");
-        String birthDate = record.get("Recipient date of birth");
-        String sex = record.get("Recipient sex");
-        String street = record.get("Recipient address: street");
-        String street2 = record.get("Recipient address: street 2");
-        String city = record.get("Recipient address: city");
-        String county = record.get("Recipient address: county");
-        String state = record.get("Recipient address: state");
-        String zipCode = record.get("Recipient address: zip code");
-        String administrationDate = record.get("Administration date");
-        String cvx = record.get("CVX");
-        String ndc = record.get("NDC");
-        String mvx = record.get("MVX");
-        String lotNumber = record.get("Lot number");
-        String vaccineExpDate = record.get("Vaccine expiration date");
-        String vaccineAdmSite = record.get("Vaccine administering site");
-        String vaccineRoute = record.get("Vaccine route of administration");
-        String responsibleOrg = record.get("Responsible organization");
-        String admAtLoc = record.get("Administered at location");
+      String vaccinationEventId = record.get("Vaccination event ID");
+      String recipientId = record.get("Recipient ID");
+      String firstName = record.get("Recipient name: first");
+      String middleName = record.get("Recipient name: middle");
+      String lastName = record.get("Recipient name: last");
+      String birthDate = record.get("Recipient date of birth");
+      String sex = record.get("Recipient sex");
+      String street = record.get("Recipient address: street");
+      String street2 = record.get("Recipient address: street 2");
+      String city = record.get("Recipient address: city");
+      String county = record.get("Recipient address: county");
+      String state = record.get("Recipient address: state");
+      String zipCode = record.get("Recipient address: zip code");
+      String administrationDate = record.get("Administration date");
+      String cvx = record.get("CVX");
+      String ndc = record.get("NDC");
+      String mvx = record.get("MVX");
+      String lotNumber = record.get("Lot number");
+      String vaccineExpDate = record.get("Vaccine expiration date");
+      String vaccineAdmSite = record.get("Vaccine administering site");
+      String vaccineRoute = record.get("Vaccine route of administration");
+      String responsibleOrg = record.get("Responsible organization");
+      String admAtLoc = record.get("Administered at location");
 
-        MqeMessageReceived mmr = new MqeMessageReceived();
-        MqeMessageHeader header = mmr.getMessageHeader();
-        MqePatient patient = mmr.getPatient();
-        MqeAddress address = patient.getPatientAddress();
-        List<MqeVaccination> vaccinations = mmr.getVaccinations();
-        MqeVaccination vaccination = new MqeVaccination();
+      MqeMessageReceived mmr = new MqeMessageReceived();
+      MqeMessageHeader header = mmr.getMessageHeader();
+      MqePatient patient = mmr.getPatient();
+      MqeAddress address = patient.getPatientAddress();
+      List<MqeVaccination> vaccinations = mmr.getVaccinations();
+      MqeVaccination vaccination = new MqeVaccination();
 
-        SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmssZ");
-        Date date = new Date(System.currentTimeMillis());
-        header.setMessageDateString(formatter.format(date));
-        header.setMessageDate(date);
+      SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmssZ");
+      Date date = new Date(System.currentTimeMillis());
+      header.setMessageDateString(formatter.format(date));
+      header.setMessageDate(date);
 
-        vaccination.setAdminDateString(administrationDate);
-        vaccination.setAdminCvxCode(cvx);
-        vaccination.setAdminNdcCode(ndc);
-        vaccination.setManufacturerCode(mvx);
-        vaccination.setLotNumber(lotNumber);
-        vaccination.setExpirationDateString(vaccineExpDate);
-        vaccination.setBodySiteCode(vaccineAdmSite);
-        vaccination.setBodyRouteCode(vaccineRoute);
-        vaccination.setActionCode("A");
-        vaccinations.add(vaccination);
+      vaccination.setAdminDateString(administrationDate);
+      vaccination.setAdminCvxCode(cvx);
+      vaccination.setAdminNdcCode(ndc);
+      vaccination.setManufacturerCode(mvx);
+      vaccination.setLotNumber(lotNumber);
+      vaccination.setExpirationDateString(vaccineExpDate);
+      vaccination.setBodySiteCode(vaccineAdmSite);
+      vaccination.setBodyRouteCode(vaccineRoute);
+      vaccination.setActionCode("A");
+      vaccinations.add(vaccination);
 
-        address.setStreet(street);
-        address.setStreet2(street2);
-        address.setCity(city);
-        address.setStateCode(state);
-        address.setZip(zipCode);
+      address.setStreet(street);
+      address.setStreet2(street2);
+      address.setCity(city);
+      address.setStateCode(state);
+      address.setZip(zipCode);
 
-        patient.setNameFirst(firstName);
-        patient.setNameMiddle(middleName);
-        patient.setNameLast(lastName);
-        patient.setBirthDateString(birthDate);
-        patient.setSexCode(sex);
-        patient.setIdSubmitterNumber(recipientId);
+      patient.setNameFirst(firstName);
+      patient.setNameMiddle(middleName);
+      patient.setNameLast(lastName);
+      patient.setBirthDateString(birthDate);
+      patient.setSexCode(sex);
+      patient.setIdSubmitterNumber(recipientId);
 
-        List<ValidationRuleResult> list = validator.validateMessage(mmr);
-        reportResults(list);
-
+      List<ValidationRuleResult> list = validator.validateMessage(mmr);
+      boolean cleanFile = reportResults(list);
+      if (!cleanFile) {
+        errorFile = writeErrorFile(list, record, file.getName(), errorFile);
+      } else {
         Map<String, String> valuesMap = new HashMap<>();
         valuesMap.put("messageHeaderDate", header.getMessageDateString());
         valuesMap.put("lastName", lastName);
@@ -189,10 +199,61 @@ public class FileWatchService {
         String resolvedString = sub.replace(vxuTemplate);
         System.out.println(resolvedString);
         writeFile(file.getName(), resolvedString);
+        readyFile = writeReadyFile(list, record, file.getName(), readyFile);
       }
-    } catch (Exception e) {
-      System.out.println("Couldn't parse file.");
+
+      file.delete();
     }
+  }
+
+  File writeReadyFile(List<ValidationRuleResult> list, CSVRecord record, String name, File file)
+      throws IOException {
+    String directoryName = "./" + DIR_SEND + "/" + DIR_SEND_READY;
+
+    File directory = new File(directoryName);
+    if (!directory.exists()) {
+      directory.mkdir();
+    }
+
+    if (file == null) {
+      SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
+      Date date = new Date(System.currentTimeMillis());
+      String dateStr = formatter.format(date);
+      String fileName = name.split("\\.")[0] + "-READY-" + dateStr + ".csv";
+      file = new File(directoryName + "/" + fileName);
+    }
+
+    FileWriter fw = new FileWriter(file.getAbsoluteFile());
+    BufferedWriter bw = new BufferedWriter(fw);
+    bw.write(record.toString());
+    bw.close();
+
+    return file;
+  }
+
+  File writeErrorFile(List<ValidationRuleResult> list, CSVRecord record, String name, File file)
+      throws IOException {
+    String directoryName = "./" + DIR_SEND + "/" + DIR_SEND_ERROR;
+
+    File directory = new File(directoryName);
+    if (!directory.exists()) {
+      directory.mkdir();
+    }
+
+    if (file == null) {
+      SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
+      Date date = new Date(System.currentTimeMillis());
+      String dateStr = formatter.format(date);
+      String fileName = name.split("\\.")[0] + "-ERROR-" + dateStr + ".csv";
+      file = new File(directoryName + "/" + fileName);
+    }
+
+    FileWriter fw = new FileWriter(file.getAbsoluteFile());
+    BufferedWriter bw = new BufferedWriter(fw);
+    bw.write(record.toString());
+    bw.close();
+
+    return file;
   }
 
   void writeFile(String name, String value) throws IOException {
@@ -215,7 +276,7 @@ public class FileWatchService {
     bw.close();
   }
 
-  private void reportResults(List<ValidationRuleResult> list) {
+  private boolean reportResults(List<ValidationRuleResult> list) {
     for (ValidationRuleResult vrr : list) {
       for (ValidationReport i : vrr.getValidationDetections()) {
         if (SeverityLevel.ERROR == i.getSeverity()) {
@@ -228,16 +289,17 @@ public class FileWatchService {
             s = s.substring(0, 18);
           }
           System.out.println(s + ": " + i.getDetection() + "[" + i.getValueReceived() + "]");
+          return false;
         }
       }
     }
+    return true;
   }
 
   public static void main(String[] args) throws IOException {
     String directoryName = "./" + DIR_SEND;
     File directory = new File(directoryName);
-    if (!directory.exists())
-    {
+    if (!directory.exists()) {
       directory.mkdir();
     }
     Path dir = Paths.get(directoryName);
