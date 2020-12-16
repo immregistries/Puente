@@ -46,15 +46,16 @@ public class FileWatchService {
 
   private final String vxuTemplate =
       "MSH|^~\\&|||||${messageHeaderDate}||VXU^V04^VXU_V04||P|2.5.1|||ER|AL|||||Z22^CDCPHINVS\n"
-      + "PID|1||U09J28375^^^AIRA-TEST^MR||${lastName}^${firstName}^${middleName}^^^^L||${birthDate}|${sex}||2106-3^White^CDCREC|${street}^${street2}^${city}^${state}^${zipCode}^USA^P|||||||||||\n"
-      + "RXA|0|1|${administrationDate}||${administeredCode}|999|||01^Historical information - source unspecified^NIP001|||||||||||CP|A";
+          + "PID|1||U09J28375^^^AIRA-TEST^MR||${lastName}^${firstName}^${middleName}^^^^L||${birthDate}|${sex}||2106-3^White^CDCREC|${street}^${street2}^${city}^${state}^${zipCode}^USA^P|||||||||||\n"
+          + "RXA|0|1|${administrationDate}||${administeredCode}|999|||01^Historical information - source unspecified^NIP001|||||||||||CP|A";
 
-  private final String vxuTemplateNew = "MSH|^~\\&|||||${messageHeaderDate}||VXU^V04^VXU_V04|J69O9.9l|P|2.5.1|||ER|AL|||||Z22^CDCPHINVS|\r" + 
-      "PID|1||J69O9^^^AIRA-TEST^MR||${lastName}^${firstName}^${middleName}^^^^L|BanderaAIRA^StephanyAIRA^^^^^M|${birthDate}|${sex}||2054-5^Black or African-American^CDCREC|${street}^${street2}^${city}^${state}^${zipCode}^USA^P||^PRN^PH^^^734^9473420|||||||||2186-5^not Hispanic or Latino^CDCREC|\r" + 
-      "PD1|||||||||||02^Reminder/Recall - any method^HL70215|||||A|20201214|20201214|\r" + 
-      "ORC|RE||J69O9.3^AIRA|\r" + 
-      "RXA|0|1|${administrationDate}||${administeredCode}|999|||01^Historical^NIP001||||||||MSD^Merck and Co^MVX|||CP|A|\r";
-  
+  private final String vxuTemplateNew =
+      "MSH|^~\\&|||||${messageHeaderDate}||VXU^V04^VXU_V04|J69O9.9l|P|2.5.1|||ER|AL|||||Z22^CDCPHINVS|\r"
+          + "PID|1||J69O9^^^AIRA-TEST^MR||${lastName}^${firstName}^${middleName}^^^^L|BanderaAIRA^StephanyAIRA^^^^^M|${birthDate}|${sex}||2054-5^Black or African-American^CDCREC|${street}^${street2}^${city}^${state}^${zipCode}^USA^P||^PRN^PH^^^734^9473420|||||||||2186-5^not Hispanic or Latino^CDCREC|\r"
+          + "PD1|||||||||||02^Reminder/Recall - any method^HL70215|||||A|20201214|20201214|\r"
+          + "ORC|RE||J69O9.3^AIRA|\r"
+          + "RXA|0|1|${administrationDate}||${administeredCode}|999|||01^Historical^NIP001||||||||MSD^Merck and Co^MVX|||CP|A|\r";
+
   FileWatchService(Path dir) throws IOException {
     this.watcher = FileSystems.getDefault().newWatchService();
     this.keys = new HashMap<WatchKey, Path>();
@@ -111,7 +112,7 @@ public class FileWatchService {
     File readyFile = null;
     Iterable<CSVRecord> records = new ArrayList<CSVRecord>();
     try {
-      records = CSVFormat.DEFAULT.withFirstRecordAsHeader().parse(new FileReader(file));
+      records = CSVFormat.DEFAULT.withFirstRecordAsHeader().withTrim().parse(new FileReader(file));
     } catch (Exception e) {
       System.out.println("Couldn't parse file.");
     }
@@ -119,7 +120,7 @@ public class FileWatchService {
       System.out.println(record);
 
       try {
-        String vaccinationEventId = record.get("Vaccination event ID");
+        // String vaccinationEventId = record.get("Vaccination event ID");
         String recipientId = record.get("Recipient ID");
         String firstName = record.get("Recipient name: first");
         String middleName = record.get("Recipient name: middle");
@@ -180,9 +181,9 @@ public class FileWatchService {
         patient.setIdSubmitterNumber(recipientId);
 
         List<ValidationRuleResult> list = validator.validateMessage(mmr);
-        boolean cleanFile = reportResults(list);
-        if (!cleanFile) {
-          errorFile = writeErrorFile(list, record, file.getName(), errorFile);
+        String errorStr = reportResults(list);
+        if (errorStr != null) {
+          errorFile = writeErrorFile(errorStr, record, file.getName(), errorFile);
         } else {
           Map<String, String> valuesMap = new HashMap<>();
           valuesMap.put("messageHeaderDate", header.getMessageDateString());
@@ -209,18 +210,18 @@ public class FileWatchService {
           String resolvedString = sub.replace(vxuTemplate);
           System.out.println(resolvedString);
           writeFile(file.getName(), resolvedString);
-          readyFile = writeReadyFile(list, record, file.getName(), readyFile);
+          readyFile = writeReadyFile(record, file.getName(), readyFile);
         }
-        file.delete();
-    } catch (IllegalArgumentException iae) {
-      String message = iae.getMessage().split(",")[0];
-      System.out.println(message);
-    }
+      } catch (IllegalArgumentException iae) {
+        String message = iae.getMessage().split(",")[0];
+        System.out.println(message);
+        errorFile = writeErrorFile(message, record, file.getName(), errorFile);
       }
+    }
+    file.delete();
   }
 
-  File writeReadyFile(List<ValidationRuleResult> list, CSVRecord record, String name, File file)
-      throws IOException {
+  File writeReadyFile(CSVRecord record, String name, File file) throws IOException {
     String directoryName = "./" + DIR_SEND + "/" + DIR_SEND_READY;
 
     File directory = new File(directoryName);
@@ -236,15 +237,23 @@ public class FileWatchService {
       file = new File(directoryName + "/" + fileName);
     }
 
-    FileWriter fw = new FileWriter(file.getAbsoluteFile());
+    FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
     BufferedWriter bw = new BufferedWriter(fw);
-    bw.write(record.toString());
+    String recordString = "";
+    Iterator<String> itr = record.iterator();
+    while (itr.hasNext()) {
+      recordString += itr.next();
+      if (itr.hasNext()) {
+        recordString += ",";
+      }
+    }
+    bw.write(recordString);
     bw.close();
 
     return file;
   }
 
-  File writeErrorFile(List<ValidationRuleResult> list, CSVRecord record, String name, File file)
+  File writeErrorFile(String errorString, CSVRecord record, String name, File file)
       throws IOException {
     String directoryName = "./" + DIR_SEND + "/" + DIR_SEND_ERROR;
 
@@ -261,9 +270,9 @@ public class FileWatchService {
       file = new File(directoryName + "/" + fileName);
     }
 
-    FileWriter fw = new FileWriter(file.getAbsoluteFile());
+    FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
     BufferedWriter bw = new BufferedWriter(fw);
-    String recordString = "";
+    String recordString = "" + errorString;
     Iterator<String> itr = record.iterator();
     while (itr.hasNext()) {
       recordString += itr.next();
@@ -297,7 +306,7 @@ public class FileWatchService {
     bw.close();
   }
 
-  private boolean reportResults(List<ValidationRuleResult> list) {
+  private String reportResults(List<ValidationRuleResult> list) {
     for (ValidationRuleResult vrr : list) {
       for (ValidationReport i : vrr.getValidationDetections()) {
         if (SeverityLevel.ERROR == i.getSeverity()) {
@@ -310,11 +319,11 @@ public class FileWatchService {
             s = s.substring(0, 18);
           }
           System.out.println(s + ": " + i.getDetection() + "[" + i.getValueReceived() + "]");
-          return false;
+          return i.getDetection().toString();
         }
       }
     }
-    return true;
+    return null;
   }
 
   public static void main(String[] args) throws IOException {
