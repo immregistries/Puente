@@ -40,18 +40,13 @@ public class FileWatchService {
   private MessageValidator validator = MessageValidator.INSTANCE;
 
   private static final String DIR_SEND = "send";
-  private static final String DIR_SEND_ERROR = "send-error";
-  private static final String DIR_SEND_READY = "send-ready";
+  private static final String DIR_SEND_ERROR = "error";
+  private static final String DIR_SEND_READY = "ready";
   private static final String DIR_REQUEST = "request";
-
-  private final String vxuTemplate =
-      "MSH|^~\\&|||||${messageHeaderDate}||VXU^V04^VXU_V04||P|2.5.1|||ER|AL|||||Z22^CDCPHINVS\n"
-          + "PID|1||U09J28375^^^AIRA-TEST^MR||${lastName}^${firstName}^${middleName}^^^^L||${birthDate}|${sex}||2106-3^White^CDCREC|${street}^${street2}^${city}^${state}^${zipCode}^USA^P|||||||||||\n"
-          + "RXA|0|1|${administrationDate}||${administeredCode}|999|||01^Historical information - source unspecified^NIP001|||||||||||CP|A";
 
   private final String vxuTemplateNew =
       "MSH|^~\\&|||||${messageHeaderDate}||VXU^V04^VXU_V04|J69O9.9l|P|2.5.1|||ER|AL|||||Z22^CDCPHINVS|\r"
-          + "PID|1||J69O9^^^AIRA-TEST^MR||${lastName}^${firstName}^${middleName}^^^^L|BanderaAIRA^StephanyAIRA^^^^^M|${birthDate}|${sex}||2054-5^Black or African-American^CDCREC|${street}^${street2}^${city}^${state}^${zipCode}^USA^P||^PRN^PH^^^734^9473420|||||||||2186-5^not Hispanic or Latino^CDCREC|\r"
+          + "PID|1||J69O9^^^AIRA-TEST^MR||${lastName}^${firstName}^${middleName}^^^^L||${birthDate}|${sex}||2054-5^Black or African-American^CDCREC|${street}^${street2}^${city}^${state}^${zipCode}^USA^P||^PRN^PH^^^734^9473420|||||||||2186-5^not Hispanic or Latino^CDCREC|\r"
           + "PD1|||||||||||02^Reminder/Recall - any method^HL70215|||||A|20201214|20201214|\r"
           + "ORC|RE||J69O9.3^AIRA|\r"
           + "RXA|0|1|${administrationDate}||${administeredCode}|999|||01^Historical^NIP001||||||||MSD^Merck and Co^MVX|||CP|A|\r";
@@ -207,7 +202,7 @@ public class FileWatchService {
           }
           valuesMap.put("administeredCode", administeredCode);
           StringSubstitutor sub = new StringSubstitutor(valuesMap);
-          String resolvedString = sub.replace(vxuTemplate);
+          String resolvedString = sub.replace(vxuTemplateNew);
           System.out.println(resolvedString);
           writeFile(file.getName(), resolvedString);
           readyFile = writeReadyFile(record, file.getName(), readyFile);
