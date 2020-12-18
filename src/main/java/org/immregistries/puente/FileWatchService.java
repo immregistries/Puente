@@ -11,8 +11,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.DirectoryIteratorException;
 import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
 import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.WatchEvent;
@@ -26,8 +26,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.text.StringSubstitutor;
 import org.immregistries.mqe.hl7util.SeverityLevel;
 import org.immregistries.mqe.validator.detection.ValidationReport;
@@ -50,16 +51,11 @@ public class FileWatchService {
   private static final String DIR_REQUEST = "request";
 
   private static final String vxuTemplate =
-      "MSH|^~\\&|||||${messageHeaderDate}||VXU^V04^VXU_V04||P|2.5.1|||ER|AL|||||Z22^CDCPHINVS\n"
-          + "PID|1||U09J28375^^^AIRA-TEST^MR||${lastName}^${firstName}^${middleName}^^^^L||${birthDate}|${sex}||2106-3^White^CDCREC|${street}^${street2}^${city}^${state}^${zipCode}^USA^P|||||||||||\n"
-          + "RXA|0|1|${administrationDate}||${administeredCode}|999|||01^Historical information - source unspecified^NIP001|||||||||||CP|A";
-
-  private static final String vxuTemplateNew =
-      "MSH|^~\\&|||||${messageHeaderDate}||VXU^V04^VXU_V04|J69O9.9l|P|2.5.1|||ER|AL|||||Z22^CDCPHINVS|\r"
-          + "PID|1||J69O9^^^AIRA-TEST^MR||${lastName}^${firstName}^${middleName}^^^^L||${birthDate}|${sex}||2054-5^Black or African-American^CDCREC|${street}^${street2}^${city}^${state}^${zipCode}^USA^P||^PRN^PH^^^734^9473420|||||||||2186-5^not Hispanic or Latino^CDCREC|\r"
-          + "PD1|||||||||||02^Reminder/Recall - any method^HL70215|||||A|20201214|20201214|\r"
-          + "ORC|RE||J69O9.3^AIRA|\r"
-          + "RXA|0|1|${administrationDate}||${administeredCode}|999|||01^Historical^NIP001||||||||MSD^Merck and Co^MVX|||CP|A|\r";
+      "MSH|^~\\&|||||${messageHeaderDate}||VXU^V04^VXU_V04|J69O9.9l|P|2.5.1|||ER|AL|||||Z22^CDCPHINVS|\n"
+          + "PID|1||${recipientId}^^^AIRA-TEST^MR||${lastName}^${firstName}^${middleName}^^^^L||${birthDate}|${sex}||${pid10}|${street}^${street2}^${city}^${state}^${zipCode}^USA^P||^PRN^PH^^^734^9473420|||||||||${ethnicity}|\n"
+          + "PD1|||||||||||02^Reminder/Recall - any method^HL70215|||||A|20201214|20201214|\n"
+          + "ORC|RE||${vaccinationEventId}^AIRA|\n"
+          + "RXA|0|1|${administrationDate}||${administeredCode}|999|||01^Historical^NIP001||||||${lotNumber}||${mvx}|||CP|A|\n";
 
   FileWatchService(Path dir) throws IOException {
     this.watcher = FileSystems.getDefault().newWatchService();
@@ -129,110 +125,152 @@ public class FileWatchService {
     for (CSVRecord record : records) {
       System.out.println(record);
 
-      // String vaccinationEventId = record.get("Vaccination event ID");
-        String recipientId = defaultedGet(record, "Recipient ID");
-        String firstName = defaultedGet(record, "Recipient name: first");
-        String middleName = defaultedGet(record, "Recipient name: middle");
-        String lastName = defaultedGet(record, "Recipient name: last");
-        String birthDate = defaultedGet(record, "Recipient date of birth");
-        String sex = defaultedGet(record, "Recipient sex");
-        String street = defaultedGet(record, "Recipient address: street");
-        String street2 = defaultedGet(record, "Recipient address: street 2");
-        String city = defaultedGet(record, "Recipient address: city");
-        String county = defaultedGet(record, "Recipient address: county");
-        String state = defaultedGet(record, "Recipient address: state");
-        String zipCode = defaultedGet(record, "Recipient address: zip code");
-        String administrationDate = defaultedGet(record, "Administration date");
-        String cvx = defaultedGet(record, "CVX");
-        String ndc = defaultedGet(record, "NDC");
-        String mvx = defaultedGet(record, "MVX");
-        String lotNumber = defaultedGet(record, "Lot number");
-        String vaccineExpDate = defaultedGet(record, "Vaccine expiration date");
-        String vaccineAdmSite = defaultedGet(record, "Vaccine administering site");
-        String vaccineRoute = defaultedGet(record, "Vaccine route of administration");
-        String responsibleOrg = defaultedGet(record, "Responsible organization");
-        String admAtLoc = defaultedGet(record, "Administered at location");
+      String vaccinationEventId = defaultedGet(record, "Vaccination event ID");
+      String recipientId = defaultedGet(record, "Recipient ID");
+      String firstName = defaultedGet(record, "Recipient name: first");
+      String middleName = defaultedGet(record, "Recipient name: middle");
+      String lastName = defaultedGet(record, "Recipient name: last");
+      String birthDate = defaultedGet(record, "Recipient date of birth");
+      String sex = defaultedGet(record, "Recipient sex");
+      String street = defaultedGet(record, "Recipient address: street");
+      String street2 = defaultedGet(record, "Recipient address: street 2");
+      String city = defaultedGet(record, "Recipient address: city");
+      String county = defaultedGet(record, "Recipient address: county");
+      String state = defaultedGet(record, "Recipient address: state");
+      String zipCode = defaultedGet(record, "Recipient address: zip code");
+      String administrationDate = defaultedGet(record, "Administration date");
+      String cvx = defaultedGet(record, "CVX");
+      String ndc = defaultedGet(record, "NDC");
+      String mvx = defaultedGet(record, "MVX");
+      String lotNumber = defaultedGet(record, "Lot number");
+      String vaccineExpDate = defaultedGet(record, "Vaccine expiration date");
+      String vaccineAdmSite = defaultedGet(record, "Vaccine administering site");
+      String vaccineRoute = defaultedGet(record, "Vaccine route of administration");
+      String responsibleOrg = defaultedGet(record, "Responsible organization");
+      String admAtLoc = defaultedGet(record, "Administered at location");
+      String race1 = defaultedGet(record, "Recipient race 1");
+      String ethnicity = defaultedGet(record, "Recipient ethnicity");
 
-        MqeMessageReceived mmr = new MqeMessageReceived();
-        MqeMessageHeader header = mmr.getMessageHeader();
-        MqePatient patient = mmr.getPatient();
-        MqeAddress address = patient.getPatientAddress();
-        List<MqeVaccination> vaccinations = mmr.getVaccinations();
-        MqeVaccination vaccination = new MqeVaccination();
+      ArrayList<String> races = new ArrayList<>();
+      races.add(defaultedGet(record, "Recipient race 1"));
+      races.add(defaultedGet(record, "Recipient race 2"));
+      races.add(defaultedGet(record, "Recipient race 3"));
+      races.add(defaultedGet(record, "Recipient race 4"));
+      races.add(defaultedGet(record, "Recipient race 5"));
+      races.add(defaultedGet(record, "Recipient race 6"));
 
-        SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmssZ");
-        Date date = new Date(System.currentTimeMillis());
-        header.setMessageDateString(formatter.format(date));
-        header.setMessageDate(date);
-
-        vaccination.setAdminDateString(administrationDate);
-        vaccination.setAdminCvxCode(cvx);
-        vaccination.setAdminNdcCode(ndc);
-        vaccination.setManufacturerCode(mvx);
-        vaccination.setLotNumber(lotNumber);
-        vaccination.setExpirationDateString(vaccineExpDate);
-        vaccination.setBodySiteCode(vaccineAdmSite);
-        vaccination.setBodyRouteCode(vaccineRoute);
-        vaccination.setActionCode("A");
-        vaccinations.add(vaccination);
-
-        address.setStreet(street);
-        address.setStreet2(street2);
-        address.setCity(city);
-        address.setStateCode(state);
-        address.setZip(zipCode);
-
-        patient.setNameFirst(firstName);
-        patient.setNameMiddle(middleName);
-        patient.setNameLast(lastName);
-        patient.setBirthDateString(birthDate);
-        patient.setSexCode(sex);
-        patient.setIdSubmitterNumber(recipientId);
-
-        List<ValidationRuleResult> list = validator.validateMessage(mmr);
-        String errorStr = reportResults(list);
-        if (errorStr != null) {
-          errorFile = writeErrorFile(errorStr, record, file.getName(), errorFile, headers);
-        } else {
-          Map<String, String> valuesMap = new HashMap<>();
-          valuesMap.put("messageHeaderDate", header.getMessageDateString());
-          valuesMap.put("lastName", lastName);
-          valuesMap.put("firstName", firstName);
-          valuesMap.put("middleName", middleName);
-          valuesMap.put("birthDate", birthDate);
-          valuesMap.put("sex", sex);
-          valuesMap.put("street", street);
-          valuesMap.put("street2", street2);
-          valuesMap.put("city", city);
-          valuesMap.put("state", state);
-          valuesMap.put("zipCode", zipCode);
-          valuesMap.put("administrationDate", administrationDate);
-          String administeredCode = "";
-          if (cvx != null) {
-            administeredCode = cvx + "^^CVX";
-          } else if (ndc != null) {
-            administeredCode = ndc + "^^NDC";
+      String pid10 = "";
+      for (String race : races) {
+        if (!"".equals(race)) {
+          if (!"".equals(pid10)) {
+            pid10 += "^";
           }
-          valuesMap.put("administeredCode", administeredCode);
-          StringSubstitutor sub = new StringSubstitutor(valuesMap);
-          String resolvedString = sub.replace(vxuTemplateNew);
-          System.out.println(resolvedString);
-          writeFile(file.getName(), resolvedString);
-          readyFile = writeReadyFile(record, file.getName(), readyFile, headers);
+          pid10 += race + "^^CDCREC";
         }
+      }
+
+      MqeMessageReceived mmr = new MqeMessageReceived();
+      MqeMessageHeader header = mmr.getMessageHeader();
+      MqePatient patient = mmr.getPatient();
+      MqeAddress address = patient.getPatientAddress();
+      List<MqeVaccination> vaccinations = mmr.getVaccinations();
+      MqeVaccination vaccination = new MqeVaccination();
+
+      SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmssZ");
+      Date date = new Date(System.currentTimeMillis());
+      header.setMessageDateString(formatter.format(date));
+      header.setMessageDate(date);
+
+      vaccination.setAdminDateString(administrationDate);
+      vaccination.setAdminCvxCode(cvx);
+      vaccination.setAdminNdcCode(ndc);
+      vaccination.setManufacturerCode(mvx);
+      vaccination.setLotNumber(lotNumber);
+      vaccination.setExpirationDateString(vaccineExpDate);
+      vaccination.setBodySiteCode(vaccineAdmSite);
+      vaccination.setBodyRouteCode(vaccineRoute);
+      vaccination.setActionCode("A");
+      vaccination.setLotNumber(lotNumber);
+      vaccinations.add(vaccination);
+
+      address.setStreet(street);
+      address.setStreet2(street2);
+      address.setCity(city);
+      address.setStateCode(state);
+      address.setZip(zipCode);
+
+      patient.setNameFirst(firstName);
+      patient.setNameMiddle(middleName);
+      patient.setNameLast(lastName);
+      patient.setBirthDateString(birthDate);
+      patient.setSexCode(sex);
+      patient.setIdSubmitterNumber(recipientId);
+      patient.setRace(race1);
+      patient.setEthnicity(ethnicity);
+
+      List<ValidationRuleResult> list = validator.validateMessage(mmr);
+      String errorStr = reportResults(list);
+      if (errorStr != null) {
+        errorFile = writeErrorFile(errorStr, record, file.getName(), errorFile, headers);
+      } else {
+        Map<String, String> valuesMap = new HashMap<>();
+        valuesMap.put("messageHeaderDate", header.getMessageDateString());
+        valuesMap.put("recipientId", recipientId);
+        valuesMap.put("lastName", lastName);
+        valuesMap.put("firstName", firstName);
+        valuesMap.put("middleName", middleName);
+        valuesMap.put("birthDate", birthDate);
+        valuesMap.put("sex", sex);
+        valuesMap.put("street", street);
+        valuesMap.put("street2", street2);
+        valuesMap.put("city", city);
+        valuesMap.put("state", state);
+        valuesMap.put("zipCode", zipCode);
+        valuesMap.put("administrationDate", administrationDate);
+        valuesMap.put("pid10", pid10);
+        valuesMap.put("lotNumber", lotNumber);
+        if (!"".equals(ethnicity)) {
+          ethnicity += "^^CDCREC";
+        }
+        valuesMap.put("ethnicity", ethnicity);
+
+        if ("".equals(vaccinationEventId)) {
+          vaccinationEventId = RandomStringUtils.randomAlphanumeric(10);
+        }
+        valuesMap.put("vaccinationEventId", vaccinationEventId);
+
+        if (!"".equals(mvx)) {
+          mvx += "^^MVX";
+        }
+        valuesMap.put("mvx", mvx);
+
+        String administeredCode = "";
+        if (!"".equals(cvx)) {
+          administeredCode = cvx + "^^CVX";
+        } else if (!"".equals(ndc)) {
+          administeredCode = ndc + "^^NDC";
+        }
+        valuesMap.put("administeredCode", administeredCode);
+        StringSubstitutor sub = new StringSubstitutor(valuesMap);
+        String resolvedString = sub.replace(vxuTemplate);
+        System.out.println(resolvedString);
+        writeFile(file.getName(), resolvedString);
+        readyFile = writeReadyFile(record, file.getName(), readyFile, headers);
+      }
     }
     file.delete();
   }
 
-  static String defaultedGet(CSVRecord record, String name){
-      String retStr = "";
-      if(record.isMapped(name)){
-          retStr = record.get(name);
-      }
-      return retStr;
+  static String defaultedGet(CSVRecord record, String name) {
+    String retStr = "";
+    if (record.isMapped(name)) {
+      retStr = record.get(name);
+    }
+    return retStr;
   }
 
-  static File writeReadyFile(CSVRecord record, String name, File file, List<String> headers) throws IOException {
+  static File writeReadyFile(CSVRecord record, String name, File file, List<String> headers)
+      throws IOException {
     String directoryName = "./" + DIR_SEND + "/" + DIR_SEND_READY;
 
     File directory = new File(directoryName);
@@ -250,8 +288,8 @@ public class FileWatchService {
       FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
       BufferedWriter bw = new BufferedWriter(fw);
       String recordString = "";
-      for(String s : headers){
-          recordString += s + ",";
+      for (String s : headers) {
+        recordString += s + ",";
       }
       bw.write(recordString + "\n");
       bw.close();
@@ -273,7 +311,8 @@ public class FileWatchService {
     return file;
   }
 
-  static File writeErrorFile(String errorString, CSVRecord record, String name, File file, List<String> headers)
+  static File writeErrorFile(
+      String errorString, CSVRecord record, String name, File file, List<String> headers)
       throws IOException {
     String directoryName = "./" + DIR_SEND + "/" + DIR_SEND_ERROR;
 
@@ -292,8 +331,8 @@ public class FileWatchService {
       FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
       BufferedWriter bw = new BufferedWriter(fw);
       String recordString = "Error";
-      for(String s : headers){
-          recordString += "," + s;
+      for (String s : headers) {
+        recordString += "," + s;
       }
       bw.write(recordString + "\n");
       bw.close();
@@ -363,12 +402,12 @@ public class FileWatchService {
     }
     Path dir = Paths.get(directoryName);
     try {
-        DirectoryStream<Path> directoryStream = Files.newDirectoryStream(dir);
-        for (Path entry : directoryStream){
-            evaluateFile(entry.toFile());
-        }
-    } catch (DirectoryIteratorException ex){
-        System.out.println("Exception checking for existing send files");
+      DirectoryStream<Path> directoryStream = Files.newDirectoryStream(dir);
+      for (Path entry : directoryStream) {
+        evaluateFile(entry.toFile());
+      }
+    } catch (DirectoryIteratorException ex) {
+      System.out.println("Exception checking for existing send files");
     }
     new FileWatchService(dir).processEvents();
   }
