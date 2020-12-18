@@ -8,6 +8,9 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.DirectoryIteratorException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -37,14 +40,19 @@ import org.immregistries.mqe.vxu.MqeVaccination;
 public class FileWatchService {
   private final WatchService watcher;
   private final Map<WatchKey, Path> keys;
-  private MessageValidator validator = MessageValidator.INSTANCE;
+  private static MessageValidator validator = MessageValidator.INSTANCE;
 
   private static final String DIR_SEND = "send";
   private static final String DIR_SEND_ERROR = "error";
   private static final String DIR_SEND_READY = "ready";
   private static final String DIR_REQUEST = "request";
 
-  private final String vxuTemplateNew =
+  private static final String vxuTemplate =
+      "MSH|^~\\&|||||${messageHeaderDate}||VXU^V04^VXU_V04||P|2.5.1|||ER|AL|||||Z22^CDCPHINVS\n"
+          + "PID|1||U09J28375^^^AIRA-TEST^MR||${lastName}^${firstName}^${middleName}^^^^L||${birthDate}|${sex}||2106-3^White^CDCREC|${street}^${street2}^${city}^${state}^${zipCode}^USA^P|||||||||||\n"
+          + "RXA|0|1|${administrationDate}||${administeredCode}|999|||01^Historical information - source unspecified^NIP001|||||||||||CP|A";
+
+  private static final String vxuTemplateNew =
       "MSH|^~\\&|||||${messageHeaderDate}||VXU^V04^VXU_V04|J69O9.9l|P|2.5.1|||ER|AL|||||Z22^CDCPHINVS|\r"
           + "PID|1||J69O9^^^AIRA-TEST^MR||${lastName}^${firstName}^${middleName}^^^^L||${birthDate}|${sex}||2054-5^Black or African-American^CDCREC|${street}^${street2}^${city}^${state}^${zipCode}^USA^P||^PRN^PH^^^734^9473420|||||||||2186-5^not Hispanic or Latino^CDCREC|\r"
           + "PD1|||||||||||02^Reminder/Recall - any method^HL70215|||||A|20201214|20201214|\r"
@@ -101,7 +109,7 @@ public class FileWatchService {
     }
   }
 
-  void evaluateFile(File file) throws IOException {
+  static void evaluateFile(File file) throws IOException {
     System.out.println("Evaluating File");
     File errorFile = null;
     File readyFile = null;
@@ -189,7 +197,6 @@ public class FileWatchService {
           valuesMap.put("sex", sex);
           valuesMap.put("street", street);
           valuesMap.put("street2", street2);
-          valuesMap.put("street2", street2);
           valuesMap.put("city", city);
           valuesMap.put("state", state);
           valuesMap.put("zipCode", zipCode);
@@ -216,7 +223,7 @@ public class FileWatchService {
     file.delete();
   }
 
-  File writeReadyFile(CSVRecord record, String name, File file) throws IOException {
+  static File writeReadyFile(CSVRecord record, String name, File file) throws IOException {
     String directoryName = "./" + DIR_SEND + "/" + DIR_SEND_READY;
 
     File directory = new File(directoryName);
@@ -248,7 +255,7 @@ public class FileWatchService {
     return file;
   }
 
-  File writeErrorFile(String errorString, CSVRecord record, String name, File file)
+  static File writeErrorFile(String errorString, CSVRecord record, String name, File file)
       throws IOException {
     String directoryName = "./" + DIR_SEND + "/" + DIR_SEND_ERROR;
 
@@ -281,7 +288,7 @@ public class FileWatchService {
     return file;
   }
 
-  void writeFile(String name, String value) throws IOException {
+  static void writeFile(String name, String value) throws IOException {
     String directoryName = "./" + DIR_REQUEST;
     System.out.println("Writing file");
     SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
@@ -301,7 +308,7 @@ public class FileWatchService {
     bw.close();
   }
 
-  private String reportResults(List<ValidationRuleResult> list) {
+  private static String reportResults(List<ValidationRuleResult> list) {
     for (ValidationRuleResult vrr : list) {
       for (ValidationReport i : vrr.getValidationDetections()) {
         if (SeverityLevel.ERROR == i.getSeverity()) {
@@ -328,6 +335,14 @@ public class FileWatchService {
       directory.mkdir();
     }
     Path dir = Paths.get(directoryName);
+    try {
+        DirectoryStream<Path> directoryStream = Files.newDirectoryStream(dir);
+        for (Path entry : directoryStream){
+            evaluateFile(entry.toFile());
+        }
+    } catch (DirectoryIteratorException ex){
+        System.out.println("Exception checking for existing send files");
+    }
     new FileWatchService(dir).processEvents();
   }
 }
