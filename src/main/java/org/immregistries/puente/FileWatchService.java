@@ -3,6 +3,7 @@ package org.immregistries.puente;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVRecord;
+import org.apache.commons.csv.CSVParser;
 import org.apache.commons.text.StringSubstitutor;
 import org.immregistries.mqe.hl7util.SeverityLevel;
 import org.immregistries.mqe.validator.detection.ValidationReport;
@@ -114,38 +116,42 @@ public class FileWatchService {
     File errorFile = null;
     File readyFile = null;
     Iterable<CSVRecord> records = new ArrayList<CSVRecord>();
+    List<String> headers = new ArrayList<String>();
     try {
       records = CSVFormat.DEFAULT.withFirstRecordAsHeader().withTrim().parse(new FileReader(file));
+      BufferedReader br = new BufferedReader(new FileReader(file));
+      CSVParser parser = CSVParser.parse(br, CSVFormat.DEFAULT.withFirstRecordAsHeader());
+      headers = parser.getHeaderNames();
+
     } catch (Exception e) {
       System.out.println("Couldn't parse file.");
     }
     for (CSVRecord record : records) {
       System.out.println(record);
 
-      try {
-        // String vaccinationEventId = record.get("Vaccination event ID");
-        String recipientId = record.get("Recipient ID");
-        String firstName = record.get("Recipient name: first");
-        String middleName = record.get("Recipient name: middle");
-        String lastName = record.get("Recipient name: last");
-        String birthDate = record.get("Recipient date of birth");
-        String sex = record.get("Recipient sex");
-        String street = record.get("Recipient address: street");
-        String street2 = record.get("Recipient address: street 2");
-        String city = record.get("Recipient address: city");
-        String county = record.get("Recipient address: county");
-        String state = record.get("Recipient address: state");
-        String zipCode = record.get("Recipient address: zip code");
-        String administrationDate = record.get("Administration date");
-        String cvx = record.get("CVX");
-        String ndc = record.get("NDC");
-        String mvx = record.get("MVX");
-        String lotNumber = record.get("Lot number");
-        String vaccineExpDate = record.get("Vaccine expiration date");
-        String vaccineAdmSite = record.get("Vaccine administering site");
-        String vaccineRoute = record.get("Vaccine route of administration");
-        String responsibleOrg = record.get("Responsible organization");
-        String admAtLoc = record.get("Administered at location");
+      // String vaccinationEventId = record.get("Vaccination event ID");
+        String recipientId = defaultedGet(record, "Recipient ID");
+        String firstName = defaultedGet(record, "Recipient name: first");
+        String middleName = defaultedGet(record, "Recipient name: middle");
+        String lastName = defaultedGet(record, "Recipient name: last");
+        String birthDate = defaultedGet(record, "Recipient date of birth");
+        String sex = defaultedGet(record, "Recipient sex");
+        String street = defaultedGet(record, "Recipient address: street");
+        String street2 = defaultedGet(record, "Recipient address: street 2");
+        String city = defaultedGet(record, "Recipient address: city");
+        String county = defaultedGet(record, "Recipient address: county");
+        String state = defaultedGet(record, "Recipient address: state");
+        String zipCode = defaultedGet(record, "Recipient address: zip code");
+        String administrationDate = defaultedGet(record, "Administration date");
+        String cvx = defaultedGet(record, "CVX");
+        String ndc = defaultedGet(record, "NDC");
+        String mvx = defaultedGet(record, "MVX");
+        String lotNumber = defaultedGet(record, "Lot number");
+        String vaccineExpDate = defaultedGet(record, "Vaccine expiration date");
+        String vaccineAdmSite = defaultedGet(record, "Vaccine administering site");
+        String vaccineRoute = defaultedGet(record, "Vaccine route of administration");
+        String responsibleOrg = defaultedGet(record, "Responsible organization");
+        String admAtLoc = defaultedGet(record, "Administered at location");
 
         MqeMessageReceived mmr = new MqeMessageReceived();
         MqeMessageHeader header = mmr.getMessageHeader();
@@ -186,7 +192,7 @@ public class FileWatchService {
         List<ValidationRuleResult> list = validator.validateMessage(mmr);
         String errorStr = reportResults(list);
         if (errorStr != null) {
-          errorFile = writeErrorFile(errorStr, record, file.getName(), errorFile);
+          errorFile = writeErrorFile(errorStr, record, file.getName(), errorFile, headers);
         } else {
           Map<String, String> valuesMap = new HashMap<>();
           valuesMap.put("messageHeaderDate", header.getMessageDateString());
@@ -212,18 +218,21 @@ public class FileWatchService {
           String resolvedString = sub.replace(vxuTemplateNew);
           System.out.println(resolvedString);
           writeFile(file.getName(), resolvedString);
-          readyFile = writeReadyFile(record, file.getName(), readyFile);
+          readyFile = writeReadyFile(record, file.getName(), readyFile, headers);
         }
-      } catch (IllegalArgumentException iae) {
-        String message = iae.getMessage().split(",")[0];
-        System.out.println(message);
-        errorFile = writeErrorFile(message, record, file.getName(), errorFile);
-      }
     }
     file.delete();
   }
 
-  static File writeReadyFile(CSVRecord record, String name, File file) throws IOException {
+  static String defaultedGet(CSVRecord record, String name){
+      String retStr = "";
+      if(record.isMapped(name)){
+          retStr = record.get(name);
+      }
+      return retStr;
+  }
+
+  static File writeReadyFile(CSVRecord record, String name, File file, List<String> headers) throws IOException {
     String directoryName = "./" + DIR_SEND + "/" + DIR_SEND_READY;
 
     File directory = new File(directoryName);
@@ -237,6 +246,15 @@ public class FileWatchService {
       String dateStr = formatter.format(date);
       String fileName = name.split("\\.")[0] + "-READY-" + dateStr + ".csv";
       file = new File(directoryName + "/" + fileName);
+
+      FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
+      BufferedWriter bw = new BufferedWriter(fw);
+      String recordString = "";
+      for(String s : headers){
+          recordString += s + ",";
+      }
+      bw.write(recordString + "\n");
+      bw.close();
     }
 
     FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
@@ -249,13 +267,13 @@ public class FileWatchService {
         recordString += ",";
       }
     }
-    bw.write(recordString);
+    bw.write(recordString + "\n");
     bw.close();
 
     return file;
   }
 
-  static File writeErrorFile(String errorString, CSVRecord record, String name, File file)
+  static File writeErrorFile(String errorString, CSVRecord record, String name, File file, List<String> headers)
       throws IOException {
     String directoryName = "./" + DIR_SEND + "/" + DIR_SEND_ERROR;
 
@@ -270,6 +288,15 @@ public class FileWatchService {
       String dateStr = formatter.format(date);
       String fileName = name.split("\\.")[0] + "-ERROR-" + dateStr + ".csv";
       file = new File(directoryName + "/" + fileName);
+
+      FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
+      BufferedWriter bw = new BufferedWriter(fw);
+      String recordString = "Error";
+      for(String s : headers){
+          recordString += "," + s;
+      }
+      bw.write(recordString + "\n");
+      bw.close();
     }
 
     FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
@@ -282,7 +309,7 @@ public class FileWatchService {
         recordString += ",";
       }
     }
-    bw.write(recordString);
+    bw.write(recordString + "\n");
     bw.close();
 
     return file;
