@@ -1,7 +1,6 @@
 package org.immregistries.puente;
 
 import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
-import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -57,6 +56,13 @@ public class FileWatchService {
           + "ORC|RE||${vaccinationEventId}^AIRA|\n"
           + "RXA|0|1|${administrationDate}||${administeredCode}|999|||01^Historical^NIP001||||||${lotNumber}||${mvx}|||CP|A|\n";
 
+  private static final String vxuRefusalTemplate =
+      "MSH|^~\\&|||||${messageHeaderDate}||VXU^V04^VXU_V04|J69O9.9l|P|2.5.1|||ER|AL|||||Z22^CDCPHINVS|\n"
+          + "PID|1||${recipientId}^^^AIRA-TEST^MR||${lastName}^${firstName}^${middleName}^^^^L||${birthDate}|${sex}||${pid10}|${street}^${street2}^${city}^${state}^${zipCode}^USA^P||^PRN^PH^^^734^9473420|||||||||${ethnicity}|\n"
+          + "PD1|||||||||||02^Reminder/Recall - any method^HL70215|||||A|20201214|20201214|\n"
+          + "ORC|RE||${vaccinationEventId}^AIRA|\n"
+          + "RXA|0|1|${administrationDate}||${administeredCode}|999|||||||||${lotNumber}||${mvx}|00^Parental decision^NIP002||RE|A|\n";
+
   FileWatchService(Path dir) throws IOException {
     this.watcher = FileSystems.getDefault().newWatchService();
     this.keys = new HashMap<WatchKey, Path>();
@@ -65,7 +71,7 @@ public class FileWatchService {
   }
 
   private void registerDirectory(Path dir) throws IOException {
-    WatchKey key = dir.register(watcher, ENTRY_CREATE, ENTRY_MODIFY);
+    WatchKey key = dir.register(watcher, ENTRY_CREATE);
     keys.put(key, dir);
   }
 
@@ -108,6 +114,9 @@ public class FileWatchService {
   }
 
   static void evaluateFile(File file) throws IOException {
+    if (file.isDirectory()) {
+      return;
+    }
     System.out.println("Evaluating File");
     File errorFile = null;
     File readyFile = null;
@@ -125,6 +134,7 @@ public class FileWatchService {
     for (CSVRecord record : records) {
       System.out.println(record);
 
+      String refusal = defaultedGet(record, "Vaccination refusal");
       String vaccinationEventId = defaultedGet(record, "Vaccination event ID");
       String recipientId = defaultedGet(record, "Recipient ID");
       String firstName = defaultedGet(record, "Recipient name: first");
@@ -252,7 +262,14 @@ public class FileWatchService {
         }
         valuesMap.put("administeredCode", administeredCode);
         StringSubstitutor sub = new StringSubstitutor(valuesMap);
-        String resolvedString = sub.replace(vxuTemplate);
+
+        String resolvedString = "";
+        if ("".equals(refusal)) {
+          resolvedString = sub.replace(vxuTemplate);
+        } else {
+          resolvedString = sub.replace(vxuRefusalTemplate);
+        }
+
         if (!"".equals(vaccineRoute)) {
           String rxr = "RXR|" + vaccineRoute + "^^NCIT|";
           if (!"".equals(vaccineAdmSite)) {
