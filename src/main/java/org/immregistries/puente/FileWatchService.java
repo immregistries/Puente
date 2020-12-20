@@ -253,6 +253,13 @@ public class FileWatchService {
         valuesMap.put("administeredCode", administeredCode);
         StringSubstitutor sub = new StringSubstitutor(valuesMap);
         String resolvedString = sub.replace(vxuTemplate);
+        if (!"".equals(vaccineRoute)) {
+          String rxr = "RXR|" + vaccineRoute + "^^NCIT|";
+          if (!"".equals(vaccineAdmSite)) {
+            rxr += vaccineAdmSite + "^^HL70163";
+          }
+          resolvedString += rxr + "\n";
+        }
         System.out.println(resolvedString);
         writeFile(file.getName(), resolvedString);
         readyFile = writeReadyFile(record, file.getName(), readyFile, headers);
