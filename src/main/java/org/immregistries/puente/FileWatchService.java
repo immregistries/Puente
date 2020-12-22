@@ -156,6 +156,7 @@ public class FileWatchService {
     System.out.println("Reading " + file.getName());
     File errorFile = null;
     File readyFile = null;
+    File hl7File = null;
     Iterable<CSVRecord> records = new ArrayList<CSVRecord>();
     List<String> headers = new ArrayList<String>();
     FileReader fileReader = new FileReader(file);
@@ -170,7 +171,6 @@ public class FileWatchService {
         System.out.println("Couldn't parse file.");
         e.printStackTrace();
       }
-
 
       boolean okayToRead = true;
       for (String requiredHeader : REQUIRED_HEADERS) {
@@ -338,7 +338,7 @@ public class FileWatchService {
             resolvedString += rxr + "\n";
           }
           System.out.println(resolvedString);
-          writeFile(file.getName(), resolvedString);
+          hl7File = writeFile(file.getName(), resolvedString + "\n", hl7File);
           readyFile = writeReadyFile(record, file.getName(), readyFile, headers);
         }
       }
@@ -353,8 +353,11 @@ public class FileWatchService {
     } finally {
       fileReader.close();
     }
-    file.delete();
-    System.out.println("  + Original file deleted");
+    if(file.delete()){
+      System.out.println("  + Original file deleted");
+    }else{
+      System.out.println("  + File deletion failed");
+    }
   }
 
   static String defaultedGet(CSVRecord record, String name) {
@@ -452,24 +455,29 @@ public class FileWatchService {
     return file;
   }
 
-  static void writeFile(String name, String value) throws IOException {
+  static File writeFile(String name, String value, File file) throws IOException {
     String directoryName = "./" + DIR_REQUEST;
     System.out.println("Writing file");
-    SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
-    Date date = new Date(System.currentTimeMillis());
-    String dateStr = formatter.format(date);
-    String fileName = name.split("\\.")[0] + "-" + dateStr + ".hl7";
 
     File directory = new File(directoryName);
     if (!directory.exists()) {
       directory.mkdir();
     }
 
-    File file = new File(directoryName + "/" + fileName);
-    FileWriter fw = new FileWriter(file.getAbsoluteFile());
+    if (file == null) {
+      SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
+      Date date = new Date(System.currentTimeMillis());
+      String dateStr = formatter.format(date);
+      String fileName = name.split("\\.")[0] + "-" + dateStr + ".hl7";
+      file = new File(directoryName + "/" + fileName);
+    }
+
+    FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
     BufferedWriter bw = new BufferedWriter(fw);
     bw.write(value);
     bw.close();
+
+    return file;
   }
 
   private static String reportResults(List<ValidationRuleResult> list) {
