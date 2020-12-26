@@ -164,7 +164,7 @@ public class FileWatchService {
       try {
         records = CSVFormat.DEFAULT.withFirstRecordAsHeader().withTrim().parse(fileReader);
         BufferedReader br = new BufferedReader(new FileReader(file));
-        CSVParser parser = CSVParser.parse(br, CSVFormat.DEFAULT.withFirstRecordAsHeader());
+        CSVParser parser = CSVParser.parse(br, CSVFormat.DEFAULT.withFirstRecordAsHeader().withTrim());
         headers = parser.getHeaderNames();
         parser.close();
       } catch (Exception e) {
@@ -324,10 +324,10 @@ public class FileWatchService {
           StringSubstitutor sub = new StringSubstitutor(valuesMap);
 
           String resolvedString = "";
-          if ("".equals(refusal)) {
-            resolvedString = sub.replace(vxuTemplate);
-          } else {
+          if(vaccineRefused(refusal.toUpperCase())){
             resolvedString = sub.replace(vxuRefusalTemplate);
+          }else{
+            resolvedString = sub.replace(vxuTemplate);
           }
 
           if (!"".equals(vaccineRoute)) {
@@ -349,7 +349,6 @@ public class FileWatchService {
       if (countOkay > 0) {
         System.out.println("  + HL7 messages created: " + countOkay);
       }
-
     } finally {
       fileReader.close();
     }
@@ -369,6 +368,14 @@ public class FileWatchService {
       retStr = "";
     }
     return retStr.trim();
+  }
+
+  static boolean vaccineRefused(String refusal){
+      boolean retVal = false;
+      if(!"".equals(refusal) && !"NO".equals(refusal)) {
+          retVal = true;
+      }
+      return retVal;
   }
 
   static File writeReadyFile(CSVRecord record, String name, File file, List<String> headers)
