@@ -1,6 +1,7 @@
 package org.immregistries.puente;
 
 import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -72,13 +73,20 @@ public class FileWatchService {
   private static final String PARAM_VACCINATION_EVENT_ID = "Vaccination event ID";
   private static final String PARAM_VACCINATION_REFUSAL = "Vaccination refusal";
 
-  private static final String[] REQUIRED_HEADERS =
-      {PARAM_RECIPIENT_ID, PARAM_RECIPIENT_NAME_FIRST, PARAM_RECIPIENT_NAME_LAST,
-          PARAM_RECIPIENT_DATE_OF_BIRTH, PARAM_RECIPIENT_SEX, PARAM_ADMINISTRATION_DATE};
+  private static final String[] REQUIRED_HEADERS = {
+    PARAM_RECIPIENT_ID,
+    PARAM_RECIPIENT_NAME_FIRST,
+    PARAM_RECIPIENT_NAME_LAST,
+    PARAM_RECIPIENT_DATE_OF_BIRTH,
+    PARAM_RECIPIENT_SEX,
+    PARAM_ADMINISTRATION_DATE
+  };
 
   private final WatchService watcher;
   private final Map<WatchKey, Path> keys;
   private static MessageValidator validator = MessageValidator.INSTANCE;
+  private static SimpleDateFormat formatterBasic = new SimpleDateFormat("yyyyMMdd");
+  private static SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmssZ");
 
   private static final String DIR_DATA = "data";
   private static final String DIR_DATA_ERROR = "error";
@@ -112,7 +120,7 @@ public class FileWatchService {
   }
 
   void processEvents() throws IOException {
-    for (;;) {
+    for (; ; ) {
       WatchKey key;
       try {
         key = watcher.take();
@@ -164,7 +172,8 @@ public class FileWatchService {
       try {
         records = CSVFormat.DEFAULT.withFirstRecordAsHeader().withTrim().parse(fileReader);
         BufferedReader br = new BufferedReader(new FileReader(file));
-        CSVParser parser = CSVParser.parse(br, CSVFormat.DEFAULT.withFirstRecordAsHeader().withTrim());
+        CSVParser parser =
+            CSVParser.parse(br, CSVFormat.DEFAULT.withFirstRecordAsHeader().withTrim());
         headers = parser.getHeaderNames();
         parser.close();
       } catch (Exception e) {
@@ -198,7 +207,15 @@ public class FileWatchService {
         String firstName = defaultedGet(record, PARAM_RECIPIENT_NAME_FIRST);
         String middleName = defaultedGet(record, PARAM_RECIPIENT_NAME_MIDDLE);
         String lastName = defaultedGet(record, PARAM_RECIPIENT_NAME_LAST);
-        String birthDate = defaultedGet(record, PARAM_RECIPIENT_DATE_OF_BIRTH);
+        String birthDateString = defaultedGet(record, PARAM_RECIPIENT_DATE_OF_BIRTH);
+        Date birthDate = null;
+        if (!"".equals(birthDateString)) {
+          try {
+            birthDate = formatterBasic.parse(birthDateString);
+          } catch (Exception e) {
+            System.out.println("Couldn't parse birth date");
+          }
+        }
         String sex = defaultedGet(record, PARAM_RECIPIENT_SEX);
         String street = defaultedGet(record, PARAM_RECIPIENT_ADDRESS_STREET);
         String street2 = defaultedGet(record, PARAM_RECIPIENT_ADDRESS_STREET_2);
@@ -206,7 +223,15 @@ public class FileWatchService {
         String county = defaultedGet(record, PARAM_RECIPIENT_ADDRESS_COUNTY);
         String state = defaultedGet(record, PARAM_RECIPIENT_ADDRESS_STATE);
         String zipCode = defaultedGet(record, PARAM_RECIPIENT_ADDRESS_ZIP_CODE);
-        String administrationDate = defaultedGet(record, PARAM_ADMINISTRATION_DATE);
+        String adminDateString = defaultedGet(record, PARAM_ADMINISTRATION_DATE);
+        Date adminDate = null;
+        if (!"".equals(adminDateString)) {
+          try {
+            adminDate = formatterBasic.parse(adminDateString);
+          } catch (Exception e) {
+            System.out.println("Couldn't parse administration date");
+          }
+        }
         String cvx = defaultedGet(record, PARAM_CVX2);
         String ndc = defaultedGet(record, PARAM_NDC2);
         String mvx = defaultedGet(record, PARAM_MVX2);
@@ -244,12 +269,12 @@ public class FileWatchService {
         List<MqeVaccination> vaccinations = mmr.getVaccinations();
         MqeVaccination vaccination = new MqeVaccination();
 
-        SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmssZ");
         Date date = new Date(System.currentTimeMillis());
         header.setMessageDateString(formatter.format(date));
         header.setMessageDate(date);
 
-        vaccination.setAdminDateString(administrationDate);
+        vaccination.setAdminDateString(adminDateString);
+        vaccination.setAdminDate(adminDate);
         vaccination.setAdminCvxCode(cvx);
         vaccination.setAdminNdcCode(ndc);
         vaccination.setManufacturerCode(mvx);
@@ -270,7 +295,8 @@ public class FileWatchService {
         patient.setNameFirst(firstName);
         patient.setNameMiddle(middleName);
         patient.setNameLast(lastName);
-        patient.setBirthDateString(birthDate);
+        patient.setBirthDateString(birthDateString);
+        patient.setBirthDate(birthDate);
         patient.setSexCode(sex);
         patient.setIdSubmitterNumber(recipientId);
         patient.setRace(race1);
@@ -289,14 +315,14 @@ public class FileWatchService {
           valuesMap.put("lastName", lastName);
           valuesMap.put("firstName", firstName);
           valuesMap.put("middleName", middleName);
-          valuesMap.put("birthDate", birthDate);
+          valuesMap.put("birthDate", birthDateString);
           valuesMap.put("sex", sex);
           valuesMap.put("street", street);
           valuesMap.put("street2", street2);
           valuesMap.put("city", city);
           valuesMap.put("state", state);
           valuesMap.put("zipCode", zipCode);
-          valuesMap.put("administrationDate", administrationDate);
+          valuesMap.put("administrationDate", adminDateString);
           valuesMap.put("pid10", pid10);
           valuesMap.put("lotNumber", lotNumber);
           if (!"".equals(ethnicity)) {
@@ -324,9 +350,9 @@ public class FileWatchService {
           StringSubstitutor sub = new StringSubstitutor(valuesMap);
 
           String resolvedString = "";
-          if(vaccineRefused(refusal.toUpperCase())){
+          if (vaccineRefused(refusal.toUpperCase())) {
             resolvedString = sub.replace(vxuRefusalTemplate);
-          }else{
+          } else {
             resolvedString = sub.replace(vxuTemplate);
           }
 
@@ -352,9 +378,9 @@ public class FileWatchService {
     } finally {
       fileReader.close();
     }
-    if(file.delete()){
+    if (file.delete()) {
       System.out.println("  + Original file deleted");
-    }else{
+    } else {
       System.out.println("  + File deletion failed");
     }
   }
@@ -370,12 +396,12 @@ public class FileWatchService {
     return retStr.trim();
   }
 
-  static boolean vaccineRefused(String refusal){
-      boolean retVal = false;
-      if(!"".equals(refusal) && !"NO".equals(refusal)) {
-          retVal = true;
-      }
-      return retVal;
+  static boolean vaccineRefused(String refusal) {
+    boolean retVal = false;
+    if (!"".equals(refusal) && !"NO".equals(refusal)) {
+      retVal = true;
+    }
+    return retVal;
   }
 
   static File writeReadyFile(CSVRecord record, String name, File file, List<String> headers)
@@ -420,8 +446,9 @@ public class FileWatchService {
     return file;
   }
 
-  static File writeErrorFile(String errorString, CSVRecord record, String name, File file,
-      List<String> headers) throws IOException {
+  static File writeErrorFile(
+      String errorString, CSVRecord record, String name, File file, List<String> headers)
+      throws IOException {
     String directoryName = "./" + DIR_DATA + "/" + DIR_DATA_ERROR;
 
     File directory = new File(directoryName);
@@ -490,6 +517,7 @@ public class FileWatchService {
   private static String reportResults(List<ValidationRuleResult> list) {
     for (ValidationRuleResult vrr : list) {
       for (ValidationReport i : vrr.getValidationDetections()) {
+        // System.out.println("  - : " + i.getDetection() + "[" + i.getValueReceived() + "]");
         if (SeverityLevel.ERROR == i.getSeverity()) {
           String s = "  - ";
           if (i.getHl7LocationList() != null && i.getHl7LocationList().size() > 0) {
@@ -499,7 +527,6 @@ public class FileWatchService {
           if (s.length() > 10) {
             s = s.substring(0, 18);
           }
-          // System.out.println(s + ": " + i.getDetection() + "[" + i.getValueReceived() + "]");
           return i.getDetection().toString();
         }
       }
