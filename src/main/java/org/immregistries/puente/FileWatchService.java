@@ -19,6 +19,7 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -81,6 +82,8 @@ public class FileWatchService {
     PARAM_RECIPIENT_SEX,
     PARAM_ADMINISTRATION_DATE
   };
+
+  private static final String[] ACCEPTABLE_REFUSAL_CODES = {"", "YES", "NO", "Y", "N"};
 
   private final WatchService watcher;
   private final Map<WatchKey, Path> keys;
@@ -198,10 +201,17 @@ public class FileWatchService {
       int countOkay = 0;
 
       for (CSVRecord record : records) {
-        // System.out.println(record);
         countTotal++;
 
         String refusal = defaultedGet(record, PARAM_VACCINATION_REFUSAL);
+        if (!Arrays.asList(ACCEPTABLE_REFUSAL_CODES).contains(refusal.toUpperCase())) {
+          errorFile =
+              writeErrorFile(
+                  "Unrecognized refusal code", record, file.getName(), errorFile, headers);
+          countError++;
+          continue;
+        }
+
         String vaccinationEventId = defaultedGet(record, PARAM_VACCINATION_EVENT_ID);
         String recipientId = defaultedGet(record, PARAM_RECIPIENT_ID);
         String firstName = defaultedGet(record, PARAM_RECIPIENT_NAME_FIRST);
@@ -398,7 +408,7 @@ public class FileWatchService {
 
   static boolean vaccineRefused(String refusal) {
     boolean retVal = false;
-    if (!"".equals(refusal) && !"NO".equals(refusal)) {
+    if (!"".equals(refusal) && !"NO".equals(refusal) && !"N".equals(refusal)) {
       retVal = true;
     }
     return retVal;
